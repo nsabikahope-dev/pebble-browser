@@ -1,48 +1,49 @@
 # 🪨 Pebble Browser
 
-A private, lightweight desktop web browser built with Python and PyQt5.
+A private, lightweight desktop web browser. No tracking. No ads. Routes through Tor.
 
-## Features
+---
 
-- **Tor routing** — all traffic routed through Tor (optional, toggleable without restart)
-- **Private by default** — no history, cookies, or cache saved between sessions
-- **Pebble Search** — built-in search proxy that fetches Brave Search results through Tor, strips all ads and tracking
-- **Multiple search engines** — switch between Pebble Search, DuckDuckGo, Google, or a local SearXNG instance
-- **KidShield** — optional content filter; keyword-based without an API key, AI-powered with one
-- **Find in page** — Ctrl+F search within any open page
-- **Zoom** — per-tab zoom with keyboard shortcuts
-- **Fake user agent** — presents as Firefox on Windows to reduce fingerprinting
-- **Permissions blocked** — geolocation, camera, microphone, and notifications are all denied
+## Download
 
-## Quick Install (Linux)
+### Step 1 — Download Pebble
+
+Click the green **Code** button at the top of this page, then **Download ZIP**.
+
+Extract the ZIP file somewhere you'll remember (e.g. your Desktop or Home folder).
+
+### Step 2 — Install & Run
+
+**On Linux:**
+
+Open the extracted folder, right-click inside it, and open a Terminal there. Then run:
 
 ```bash
-git clone https://github.com/your-username/pebble-browser.git
-cd pebble-browser
 ./install.sh
 ```
 
-`install.sh` handles everything: Python packages, system libraries, Tor, and an optional app-menu shortcut.
+That's it. It installs everything automatically and adds Pebble to your app menu.
 
-Then launch with:
+To open Pebble afterwards, search for **Pebble** in your app menu — or run `./launch.sh` from the folder.
 
-```bash
-./launch.sh
-```
+---
 
-## Manual Install
+**On Windows:**
 
-```bash
-pip install -r requirements.txt
-```
+See [WINDOWS_INSTALL.md](WINDOWS_INSTALL.md) for step-by-step instructions.
 
-On Linux you also need a few system libraries:
+---
 
-```bash
-sudo apt install tor libxcb-xinerama0 libxkbcommon-x11-0 libegl1
-```
+## Features
 
-On Windows, see [WINDOWS_INSTALL.md](WINDOWS_INSTALL.md).
+- **Tor routing** — all traffic routed through Tor (optional, toggleable)
+- **Private by default** — no history, cookies, or cache saved between sessions
+- **Brave — Full Privacy** — fetches Brave Search results through Tor server-side so Brave never sees your browser at all
+- **Multiple search engines** — Brave (full privacy), Brave Search, DuckDuckGo, Google, SearXNG
+- **KidShield** — optional content filter; keyword-based without an API key, AI-powered with one
+- **Find in page** — Ctrl+F to search within any open page
+- **Zoom** — per-tab zoom
+- **Permissions blocked** — geolocation, camera, microphone, and notifications are all denied
 
 ## Keyboard Shortcuts
 
@@ -84,12 +85,12 @@ Click **🛡 Kids** in the toolbar to configure. Two modes:
 
 ## Configuration
 
-Settings are saved to `config.json` (git-ignored). It is created on first run with safe defaults. You can also hand-edit it:
+Settings are saved to `config.json` (git-ignored). Created on first run with safe defaults. You can hand-edit it:
 
 | Key | Values | Default |
 |---|---|---|
 | `tor_enabled` | `true` / `false` | `true` |
-| `search_engine` | `pebble`, `ddg`, `google`, `searxng` | `pebble` |
+| `search_engine` | `pebble`, `brave`, `ddg`, `google`, `searxng` | `brave` |
 | `kidshield.enabled` | `true` / `false` | `false` |
 | `kidshield.apiKey` | Claude API key string | `""` |
 | `kidshield.responseMode` | `overlay`, `blur`, `banner` | `overlay` |
@@ -97,29 +98,24 @@ Settings are saved to `config.json` (git-ignored). It is created on first run wi
 ## Troubleshooting
 
 **`Could not load the Qt platform plugin "xcb"`**
-Install missing system libraries:
 ```bash
 sudo apt install libxcb-xinerama0 libxkbcommon-x11-0 libegl1
 ```
 
 **`Tor is enabled but could not connect to port 9050`**
-Start Tor:
 ```bash
-sudo systemctl start tor
-# or
 sudo apt install tor && sudo systemctl enable --now tor
 ```
 
 **`ModuleNotFoundError: No module named 'PyQt5'`**
 Run `./install.sh` or `pip install -r requirements.txt`.
 
-**App won't open when clicked from the application menu**
-Run `./install.sh` — it creates a correct `.desktop` file with the right environment variables set.
+**App won't open from the application menu**
+Run `./install.sh` — it creates the correct desktop entry.
 
 ## Privacy Notes
 
-- All browser traffic is routed through Tor's SOCKS5 proxy when enabled — your IP is never seen by websites
-- The built-in Pebble Search fetches results through Tor using Python's requests library
+- All browser traffic is routed through Tor when enabled — your IP is never seen by websites
+- The **Brave — Full Privacy** option fetches results server-side through Tor so Brave never fingerprints your browser
 - The browser uses an off-the-record profile — nothing is written to disk between sessions
-- DNS for browser pages is resolved through Tor internally
-- No analytics, no telemetry, no update checks — Pebble makes no network requests of its own
+- No analytics, no telemetry, no update checks
