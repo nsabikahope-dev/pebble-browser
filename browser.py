@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pebble — Private team browser.
+Pebble — Private browser.
 Features: Tor routing (optional), KidShield content filter (optional),
           choice of search engine (Pebble/Brave, DuckDuckGo, Google, SearXNG).
 """
@@ -18,26 +18,32 @@ KIDSHIELD_JS    = os.path.join(BASE_DIR, "kidshield.js")
 
 # ── Search engine definitions ─────────────────────────────────────────────────
 SEARCH_ENGINES = {
-    "pebble":    {
-        "label":      "Pebble Search (Brave, stripped)",
+    "pebble":  {
+        "label":      "Brave — Full Privacy",
         "home":       "http://localhost:7777/",
         "search_url": "http://localhost:7777/search?q={}",
         "local":      True,
         "port":       7777,
     },
-    "ddg":       {
+    "brave":   {
+        "label":      "Brave Search",
+        "home":       "https://search.brave.com",
+        "search_url": "https://search.brave.com/search?q={}",
+        "local":      False,
+    },
+    "ddg":     {
         "label":      "DuckDuckGo",
         "home":       "https://duckduckgo.com",
         "search_url": "https://duckduckgo.com/?q={}",
         "local":      False,
     },
-    "google":    {
+    "google":  {
         "label":      "Google",
         "home":       "https://www.google.com",
         "search_url": "https://www.google.com/search?q={}",
         "local":      False,
     },
-    "searxng":   {
+    "searxng": {
         "label":      "SearXNG (local)",
         "home":       "http://localhost:8080/",
         "search_url": "http://localhost:8080/search?q={}",
@@ -47,8 +53,8 @@ SEARCH_ENGINES = {
 }
 
 DEFAULT_CONFIG = {
-    "tor_enabled":    True,
-    "search_engine":  "pebble",
+    "tor_enabled":   True,
+    "search_engine": "brave",
     "kidshield": {
         "enabled":       False,
         "apiKey":        "",
@@ -119,13 +125,12 @@ config        = load_config()
 KIDSHIELD_SRC = load_kidshield_js()
 
 # ── Chromium flags — must be set before QApplication ─────────────────────────
-_engine      = SEARCH_ENGINES.get(config.get("search_engine", "pebble"), SEARCH_ENGINES["pebble"])
 _local_ports = [str(e["port"]) for e in SEARCH_ENGINES.values() if e.get("local") and "port" in e]
 _bypass      = ";".join(f"localhost:{p}" for p in _local_ports) + ";127.0.0.1"
 
 if config.get("tor_enabled", True):
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
-        f"--proxy-server=socks5h://127.0.0.1:9050 "
+        f"--proxy-server=socks5://127.0.0.1:9050 "
         f"--proxy-bypass-list={_bypass}"
     )
 else:
@@ -136,15 +141,25 @@ from PyQt5.QtWidgets import (
     QTabWidget, QStatusBar, QMessageBox, QSizePolicy,
     QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout,
     QCheckBox, QComboBox, QGroupBox, QScrollArea, QWidget,
-    QFormLayout, QPushButton, QLabel
+    QFormLayout, QPushButton, QLabel, QShortcut, QProgressBar,
 )
 from PyQt5.QtWebEngineWidgets import (
-    QWebEngineView, QWebEngineProfile, QWebEngineSettings, QWebEnginePage
+    QWebEngineView, QWebEngineProfile, QWebEngineSettings, QWebEnginePage,
 )
 from PyQt5.QtCore import QUrl, Qt, QSize, QTimer
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QKeySequence
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:115.0) Gecko/20100101 Firefox/115.0"
+
+
+# ── Pebble Search server (full-privacy local proxy) ──────────────────────────
+_pebble_server = None
+
+def _ensure_pebble_server(tor_ok: bool):
+    global _pebble_server
+    if _pebble_server is None:
+        from search_server import start_server
+        _pebble_server = start_server(use_tor=tor_ok)
 
 
 # ── Tor helpers ───────────────────────────────────────────────────────────────
@@ -207,6 +222,7 @@ class PrivatePage(QWebEnginePage):
 class BrowserTab(QWebEngineView):
     def __init__(self, profile, window, home_url: str, parent=None):
         super().__init__(parent)
+        self._window = window
         self.setPage(PrivatePage(profile, window, self))
         self.load(QUrl(home_url))
 
@@ -214,13 +230,25 @@ class BrowserTab(QWebEngineView):
         text = text.strip()
         if not text:
             return
-        if " " in text or ("." not in text and not text.startswith("http")):
+        if " " in text or ("." not in text and ":" not in text and not text.startswith("http")):
             url = QUrl(search_url.format(text.replace(" ", "+")))
         else:
             if not text.startswith(("http://", "https://")):
                 text = "https://" + text
             url = QUrl(text)
         self.load(url)
+
+    def contextMenuEvent(self, event):
+        menu = self.page().createStandardContextMenu()
+        data = self.page().contextMenuData()
+        if data.linkUrl().isValid():
+            link_url = data.linkUrl()
+            act = QAction("Open Link in New Tab", self)
+            act.triggered.connect(lambda: self._window.open_in_new_tab(link_url))
+            first = menu.actions()[0] if menu.actions() else None
+            menu.insertAction(first, act)
+            menu.insertSeparator(first)
+        menu.exec_(event.globalPos())
 
 
 # ── KidShield settings dialog ─────────────────────────────────────────────────
@@ -262,9 +290,9 @@ class KidShieldDialog(QDialog):
         mode_layout = QFormLayout(mode_group)
         self.mode_combo = QComboBox()
         for label, data in [
-            ("Overlay — full-screen block", "overlay"),
+            ("Overlay — full-screen block",    "overlay"),
             ("Blur   — page blurred with banner", "blur"),
-            ("Banner — top warning bar only", "banner"),
+            ("Banner — top warning bar only",  "banner"),
         ]:
             self.mode_combo.addItem(label, data)
         idx = self.mode_combo.findData(self._cfg.get("responseMode", "overlay"))
@@ -328,6 +356,7 @@ class Pebble(QMainWindow):
         return SEARCH_ENGINES.get(self.config.get("search_engine", "pebble"), SEARCH_ENGINES["pebble"])
 
     def _build_ui(self):
+        # ── Navigation toolbar ────────────────────────────────────────────────
         nav = QToolBar("Navigation")
         nav.setIconSize(QSize(18, 18))
         nav.setMovable(False)
@@ -335,25 +364,26 @@ class Pebble(QMainWindow):
         self.addToolBar(nav)
 
         for sym, tip, slot in [
-            ("◀", "Back",    self._go_back),
-            ("▶", "Forward", self._go_forward),
-            ("⟳", "Reload",  self._reload),
-            ("⌂", "Home",    self._go_home),
+            ("◀", "Back (Alt+Left)",     self._go_back),
+            ("▶", "Forward (Alt+Right)", self._go_forward),
+            ("⟳", "Reload (Ctrl+R/F5)", self._reload),
+            ("⌂", "Home",               self._go_home),
         ]:
             a = QAction(sym, self); a.setToolTip(tip); a.triggered.connect(slot); nav.addAction(a)
 
         nav.addSeparator()
         self.url_bar = QLineEdit()
-        self.url_bar.setPlaceholderText("Search or enter a URL…")
+        self.url_bar.setPlaceholderText("Search or enter a URL…  (Ctrl+L)")
         self.url_bar.returnPressed.connect(self._navigate_from_bar)
         self.url_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         nav.addWidget(self.url_bar)
         nav.addSeparator()
 
-        new_tab = QAction("＋", self); new_tab.setToolTip("New Tab")
-        new_tab.triggered.connect(self.new_tab); nav.addAction(new_tab)
+        new_tab_act = QAction("＋", self)
+        new_tab_act.setToolTip("New Tab (Ctrl+T)")
+        new_tab_act.triggered.connect(self.new_tab)
+        nav.addAction(new_tab_act)
 
-        # Search engine selector
         self.engine_combo = QComboBox()
         for key, eng in SEARCH_ENGINES.items():
             self.engine_combo.addItem(eng["label"], key)
@@ -364,35 +394,185 @@ class Pebble(QMainWindow):
         self.engine_combo.setToolTip("Select search engine")
         nav.addWidget(self.engine_combo)
 
-        # KidShield toggle
         self.ks_act = QAction(self._ks_label(), self)
         self.ks_act.setToolTip("KidShield content filter — click to configure")
         self.ks_act.triggered.connect(self._open_ks_settings)
         nav.addAction(self.ks_act)
 
-        # Tor toggle
         self.tor_act = QAction(self._tor_label(), self)
         self.tor_act.setToolTip("Toggle Tor routing (requires restart)")
         self.tor_act.triggered.connect(self._toggle_tor)
         nav.addAction(self.tor_act)
 
+        # ── Tabs ──────────────────────────────────────────────────────────────
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.setDocumentMode(True)
         self.tabs.tabCloseRequested.connect(self._close_tab)
         self.tabs.currentChanged.connect(self._on_tab_changed)
-        self.setCentralWidget(self.tabs)
 
+        # ── Find bar ──────────────────────────────────────────────────────────
+        self._find_bar = self._make_find_bar()
+
+        container = QWidget()
+        lay = QVBoxLayout(container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        lay.addWidget(self.tabs)
+        lay.addWidget(self._find_bar)
+        self.setCentralWidget(container)
+
+        # ── Status bar ────────────────────────────────────────────────────────
         self.status = QStatusBar()
         self.setStatusBar(self.status)
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 100)
+        self._progress.setFixedWidth(120)
+        self._progress.setMaximumHeight(14)
+        self._progress.setTextVisible(False)
+        self._progress.hide()
+        self.status.addPermanentWidget(self._progress)
         self._update_status()
+
+        # ── Keyboard shortcuts ────────────────────────────────────────────────
+        for key, slot in [
+            ("Ctrl+T",         self.new_tab),
+            ("Ctrl+W",         self._close_current_tab),
+            ("Ctrl+L",         self._focus_url_bar),
+            ("F6",             self._focus_url_bar),
+            ("Ctrl+R",         self._reload),
+            ("F5",             self._reload),
+            ("Ctrl+Shift+R",   self._hard_reload),
+            ("Alt+Left",       self._go_back),
+            ("Alt+Right",      self._go_forward),
+            ("Ctrl+Tab",       self._next_tab),
+            ("Ctrl+Shift+Tab", self._prev_tab),
+            ("Ctrl+F",         self._show_find_bar),
+            ("Ctrl+=",         self._zoom_in),
+            ("Ctrl++",         self._zoom_in),
+            ("Ctrl+-",         self._zoom_out),
+            ("Ctrl+0",         self._zoom_reset),
+        ]:
+            QShortcut(QKeySequence(key), self, slot)
+
         self.new_tab()
+
+    # ── Find bar ──────────────────────────────────────────────────────────────
+
+    def _make_find_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setStyleSheet(
+            "QWidget { background: #f0f0f0; border-top: 1px solid #ccc; }"
+            "QLineEdit { background: #fff; border: 1px solid #bbb; border-radius: 3px; padding: 2px 6px; }"
+        )
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(8, 4, 8, 4)
+        lay.setSpacing(4)
+
+        lay.addWidget(QLabel("Find:"))
+
+        self._find_input = QLineEdit()
+        self._find_input.setPlaceholderText("Search in page…")
+        self._find_input.setFixedWidth(220)
+        self._find_input.textChanged.connect(self._find_text)
+        self._find_input.returnPressed.connect(self._find_next)
+        self._find_input.keyPressEvent = self._find_key_press
+        lay.addWidget(self._find_input)
+
+        for label, tip, slot in [
+            ("▲", "Previous (Shift+Enter)", self._find_prev),
+            ("▼", "Next (Enter)",           self._find_next),
+        ]:
+            btn = QPushButton(label)
+            btn.setFixedWidth(28); btn.setToolTip(tip)
+            btn.clicked.connect(slot)
+            lay.addWidget(btn)
+
+        self._find_status = QLabel("")
+        self._find_status.setStyleSheet("color: #888; font-size: 12px;")
+        lay.addWidget(self._find_status)
+        lay.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedWidth(28)
+        close_btn.setToolTip("Close (Escape)")
+        close_btn.clicked.connect(self._hide_find_bar)
+        lay.addWidget(close_btn)
+
+        bar.hide()
+        return bar
+
+    def _find_key_press(self, event):
+        if event.key() == Qt.Key_Escape:
+            self._hide_find_bar()
+        elif event.key() == Qt.Key_Return and (event.modifiers() & Qt.ShiftModifier):
+            self._find_prev()
+        else:
+            QLineEdit.keyPressEvent(self._find_input, event)
+
+    def _show_find_bar(self):
+        self._find_bar.show()
+        self._find_input.setFocus()
+        self._find_input.selectAll()
+
+    def _hide_find_bar(self):
+        self._find_bar.hide()
+        self._find_input.clear()
+        self._find_status.setText("")
+        v = self._current_view()
+        if v:
+            v.findText("")
+            v.setFocus()
+
+    def _find_text(self, text: str):
+        v = self._current_view()
+        if v:
+            v.findText(text)
+            self._find_status.setText("")
+
+    def _find_next(self):
+        v = self._current_view()
+        if v:
+            v.findText(self._find_input.text())
+
+    def _find_prev(self):
+        v = self._current_view()
+        if v:
+            v.findText(self._find_input.text(), QWebEnginePage.FindBackward)
+
+    # ── Zoom ──────────────────────────────────────────────────────────────────
+
+    def _zoom_in(self):
+        v = self._current_view()
+        if v:
+            v.setZoomFactor(min(round(v.zoomFactor() + 0.1, 1), 3.0))
+            self.status.showMessage(f"Zoom: {int(v.zoomFactor() * 100)}%", 2000)
+
+    def _zoom_out(self):
+        v = self._current_view()
+        if v:
+            v.setZoomFactor(max(round(v.zoomFactor() - 0.1, 1), 0.3))
+            self.status.showMessage(f"Zoom: {int(v.zoomFactor() * 100)}%", 2000)
+
+    def _zoom_reset(self):
+        v = self._current_view()
+        if v:
+            v.setZoomFactor(1.0)
+            self.status.showMessage("Zoom: 100%", 2000)
+
+    # ── Tab helpers ───────────────────────────────────────────────────────────
+
+    def _next_tab(self):
+        self.tabs.setCurrentIndex((self.tabs.currentIndex() + 1) % self.tabs.count())
+
+    def _prev_tab(self):
+        self.tabs.setCurrentIndex((self.tabs.currentIndex() - 1) % self.tabs.count())
 
     # ── Labels ────────────────────────────────────────────────────────────────
 
     def _tor_label(self):
-        if self._tor_enabled and self._tor_ok:  return "🧅 Tor: ON"
-        if self._tor_enabled:                   return "⚠ Tor: ERROR"
+        if self._tor_enabled and self._tor_ok: return "🧅 Tor: ON"
+        if self._tor_enabled:                  return "⚠ Tor: ERROR"
         return "🔓 Tor: OFF"
 
     def _ks_label(self):
@@ -415,6 +595,8 @@ class Pebble(QMainWindow):
         key = self.engine_combo.currentData()
         self.config["search_engine"] = key
         save_config(self.config)
+        if key == "pebble":
+            _ensure_pebble_server(self._tor_ok)
         self._update_status()
 
     # ── KidShield ─────────────────────────────────────────────────────────────
@@ -452,9 +634,14 @@ class Pebble(QMainWindow):
         view._ks_timer = None
         view.titleChanged.connect(lambda t, v=view: self._update_tab_title(v, t))
         view.urlChanged.connect(lambda u, v=view: self._on_url_changed(v, u))
-        view.loadStarted.connect(lambda: self.status.showMessage("Loading…"))
+        view.loadStarted.connect(lambda v=view: self._on_load_started(v))
+        view.loadProgress.connect(lambda p, v=view: self._on_load_progress(v, p))
         view.loadFinished.connect(lambda ok, v=view: self._on_load_finished(v, ok))
         return view
+
+    def open_in_new_tab(self, url):
+        view = self.new_tab()
+        view.load(url if isinstance(url, QUrl) else QUrl(url))
 
     def _current_view(self):
         return self.tabs.currentWidget()
@@ -471,8 +658,20 @@ class Pebble(QMainWindow):
             self.url_bar.setText(url.toString())
         self._schedule_ks(view)
 
+    def _on_load_started(self, view):
+        if view is self._current_view():
+            self.status.showMessage("Loading…")
+            self._progress.setValue(0)
+            self._progress.show()
+
+    def _on_load_progress(self, view, progress):
+        if view is self._current_view():
+            self._progress.setValue(progress)
+
     def _on_load_finished(self, view, ok):
         if view is self._current_view():
+            self._progress.hide()
+            self._update_status()
             self.status.showMessage(view.url().toString())
         if ok:
             if hasattr(view, "_ks_timer") and view._ks_timer:
@@ -484,6 +683,8 @@ class Pebble(QMainWindow):
         if view:
             self.url_bar.setText(view.url().toString())
             self.setWindowTitle(f"{view.title() or 'New Tab'} — Pebble")
+            self._progress.hide()
+            self._update_status()
 
     def _close_tab(self, idx):
         if self.tabs.count() > 1:
@@ -491,11 +692,18 @@ class Pebble(QMainWindow):
         else:
             self._current_view().load(QUrl(self._engine["home"]))
 
+    def _close_current_tab(self):
+        self._close_tab(self.tabs.currentIndex())
+
     # ── Navigation ────────────────────────────────────────────────────────────
 
     def _navigate_from_bar(self):
         v = self._current_view()
         if v: v.navigate(self.url_bar.text(), self._engine["search_url"])
+
+    def _focus_url_bar(self):
+        self.url_bar.setFocus()
+        self.url_bar.selectAll()
 
     def _go_back(self):
         v = self._current_view()
@@ -508,6 +716,10 @@ class Pebble(QMainWindow):
     def _reload(self):
         v = self._current_view()
         if v: v.reload()
+
+    def _hard_reload(self):
+        v = self._current_view()
+        if v: v.page().triggerAction(QWebEnginePage.ReloadAndBypassCache)
 
     def _go_home(self):
         v = self._current_view()
@@ -532,11 +744,8 @@ def main():
     tor_enabled = config.get("tor_enabled", True)
     tor_ok      = ensure_tor() if tor_enabled else False
 
-    # Start local Pebble Search server if selected
-    engine_key = config.get("search_engine", "pebble")
-    if engine_key == "pebble":
-        from search_server import start_server
-        start_server(use_tor=tor_ok)
+    if config.get("search_engine", "brave") == "pebble":
+        _ensure_pebble_server(tor_ok)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Pebble")

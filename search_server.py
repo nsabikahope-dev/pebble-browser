@@ -98,11 +98,12 @@ PAGE_CSS = """
   .logo { font-size: 22px; font-weight: 700; color: #1a56db; text-decoration: none; }
   .logo span { color: #555; font-weight: 400; }
   form { display: flex; gap: 8px; flex: 1; max-width: 600px; }
-  input[type=search] {
+  input[type=text] {
     flex: 1; padding: 9px 14px; border: 1px solid #ccc; border-radius: 24px;
-    font-size: 15px; outline: none; background: #fff;
+    font-size: 15px; outline: none; background: #fff; color: #222;
+    -webkit-appearance: none; appearance: none;
   }
-  input[type=search]:focus { border-color: #1a56db; box-shadow: 0 0 0 2px #dbeafe; }
+  input[type=text]:focus { border-color: #1a56db; box-shadow: 0 0 0 2px #dbeafe; }
   button[type=submit] {
     background: #1a56db; color: #fff; border: none; border-radius: 20px;
     padding: 9px 20px; font-size: 14px; cursor: pointer; font-weight: 500;
@@ -131,8 +132,8 @@ PAGE_CSS = """
   .home-hero { text-align: center; padding: 80px 20px 40px; }
   .home-hero .big-logo { font-size: 48px; font-weight: 700; color: #1a56db; margin-bottom: 8px; }
   .home-hero .tagline { color: #777; margin-bottom: 28px; font-size: 15px; }
-  .home-hero form { justify-content: center; }
-  .home-hero input[type=search] { max-width: 460px; font-size: 16px; padding: 12px 18px; }
+  .home-hero form { justify-content: center; margin: 0 auto; }
+  .home-hero input[type=text] { max-width: 460px; font-size: 16px; padding: 12px 18px; }
   .home-hero button[type=submit] { padding: 12px 26px; font-size: 15px; }
   .privacy-note { margin-top: 16px; font-size: 12px; color: #aaa; }
 """
@@ -152,7 +153,7 @@ def render_home() -> str:
     <div class="big-logo">🪨 Pebble Search</div>
     <p class="tagline">Private search — your queries are yours alone</p>
     <form action="/search" method="get">
-      <input type="search" name="q" placeholder="Search the web…" autofocus autocomplete="off">
+      <input type="text" name="q" placeholder="Search the web…" autofocus autocomplete="off">
       <button type="submit">Search</button>
     </form>
     <p class="privacy-note">🧅 All requests routed through Tor &nbsp;·&nbsp; No history saved &nbsp;·&nbsp; No tracking</p>
@@ -197,7 +198,7 @@ def render_results(query: str, results: list[dict], error: str = "") -> str:
   <header>
     <a class="logo" href="/">🪨 Pebble<span> Search</span></a>
     <form action="/search" method="get">
-      <input type="search" name="q" value="{escaped_q}" autocomplete="off">
+      <input type="text" name="q" value="{escaped_q}" autocomplete="off">
       <button type="submit">Search</button>
     </form>
   </header>
