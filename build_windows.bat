@@ -14,7 +14,6 @@ pyinstaller ^
   --name "Pebble" ^
   --windowed ^
   --onedir ^
-  --icon pebble.ico ^
   --add-data "kidshield.js;." ^
   --add-data "search_server.py;." ^
   --hidden-import PyQt5.QtWebEngineWidgets ^
