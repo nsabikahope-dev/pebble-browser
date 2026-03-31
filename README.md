@@ -4,33 +4,33 @@ A private, lightweight desktop web browser. No tracking. No ads. Routes through 
 
 ---
 
-## Download
+## Download & Install
 
-### Step 1 — Download Pebble
+### Step 1 — Download
 
-Click the green **Code** button at the top of this page, then **Download ZIP**.
+Click the green **Code** button at the top of this page → **Download ZIP**.
 
-Extract the ZIP file somewhere you'll remember (e.g. your Desktop or Home folder).
-
-### Step 2 — Install & Run
-
-**On Linux:**
-
-Open the extracted folder, right-click inside it, and open a Terminal there. Then run:
-
-```bash
-./install.sh
-```
-
-That's it. It installs everything automatically and adds Pebble to your app menu.
-
-To open Pebble afterwards, search for **Pebble** in your app menu — or run `./launch.sh` from the folder.
+Unzip the file somewhere you'll remember (e.g. your Desktop).
 
 ---
 
-**On Windows:**
+### Step 2 — Install
 
-See [WINDOWS_INSTALL.md](WINDOWS_INSTALL.md) for step-by-step instructions.
+**On Windows:**
+1. Open the unzipped folder
+2. Double-click **`install.bat`**
+3. Follow the on-screen instructions
+
+Once done, double-click **`Pebble.bat`** any time you want to open Pebble.
+
+---
+
+**On Linux / Ubuntu:**
+1. Open the unzipped folder
+2. Right-click **`install.sh`** → **Properties** → **Permissions** → tick **"Allow executing file as program"**
+3. Double-click **`install.sh`** — a setup window will open automatically
+
+Once done, search for **Pebble** in your app menu to open it.
 
 ---
 

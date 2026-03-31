@@ -4,6 +4,18 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── If double-clicked from file manager (no terminal), open one ───────────────
+if [ ! -t 0 ]; then
+    if command -v gnome-terminal &>/dev/null; then
+        gnome-terminal -- bash "$0" "$@"
+    elif command -v x-terminal-emulator &>/dev/null; then
+        x-terminal-emulator -e bash "$0" "$@"
+    elif command -v xterm &>/dev/null; then
+        xterm -e bash "$0" "$@"
+    fi
+    exit
+fi
+
 echo "=== Pebble Browser Installer ==="
 echo
 
@@ -93,4 +105,7 @@ fi
 echo
 echo "=== Done! ==="
 echo
-echo "Run:  cd \"$SCRIPT_DIR\" && ./launch.sh"
+echo "You can now open Pebble from your application menu."
+echo "Or double-click launch.sh in this folder."
+echo
+read -rp "Press Enter to close..."
